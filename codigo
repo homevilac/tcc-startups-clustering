@@ -1,40 +1,4 @@
-"""
-================================================================================
-  PERFIS OPERACIONAIS DE STARTUPS PORTUGUESAS E POSICIONAMENTO DE EMPRESAS
-  BRASILEIRAS POR CLUSTERIZAÇÃO
-  ─────────────────────────────────────────────────────────────────────────────
-  TCC – MBA em Data Science e Analytics  |  USP/ESALQ – PECEGE
-  Aluno    : Homero Villalva Caceta
-  Orientador: Prof. Henrique Raymundo Gioia
-  Ano      : 2026
-================================================================================
-
-  DEPENDÊNCIAS
-  ─────────────
-  pip install pandas openpyxl scikit-learn scipy matplotlib
-
-  VERSÕES UTILIZADAS
-  ───────────────────
-  Python      3.12
-  pandas      2.2
-  scikit-learn 1.5
-  scipy       1.13
-  matplotlib  3.9
-  openpyxl    3.1
-
-  EXECUÇÃO
-  ─────────
-  1. Coloque o arquivo 'Dados_MBA.xlsx' na mesma pasta deste script.
-  2. Execute:  python Codigos_TCC_Homero_Caceta.py
-  3. Serão gerados:
-       • resultado_portugal.csv  – startups PT com cluster atribuído
-       • resultado_brasil.csv    – startups BR com cluster, distância e aderência
-       • fig1.png … fig6.png    – todas as figuras do trabalho
-
-================================================================================
-"""
-
-# ── Bibliotecas ──────────────────────────────────────────────────────────────
+# ── Instalar pacotes  ──────────────────────────────────────────────────────────────
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -72,16 +36,13 @@ plt.rcParams.update({
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 1 – CARGA E SEPARAÇÃO DOS DADOS
 # ════════════════════════════════════════════════════════════════════════════
-print("=" * 72)
-print("PASSO 1 – Carga e separação dos dados")
-print("=" * 72)
 
-ARQUIVO = 'Dados_MBA.xlsx'
-ABA     = 'Base Final'
 
-df = pd.read_excel(ARQUIVO, sheet_name=ABA)
+df = pd.read_excel('Dados MBA.xlsx',
+                   sheet_name='Base Final')
+print(df.shape)
 
-# Corrige encoding do nome de coluna que pode vir corrompido em alguns SO
+# Corrige encoding do nome de coluna
 df.columns = [c.replace('NegÃ³cio', 'Negócio') for c in df.columns]
 
 # Separar subconjuntos por país
@@ -122,7 +83,7 @@ br[CAT_FEATURE]  = br[CAT_FEATURE].fillna('Unknown')
 pt_cat = pd.get_dummies(pt[CAT_FEATURE], prefix='Neg')
 br_cat = pd.get_dummies(br[CAT_FEATURE], prefix='Neg')
 
-# Garantir que BR tenha exatamente as mesmas colunas que PT
+# Para que BR tenha exatamente as mesmas colunas que PT
 for col in pt_cat.columns:
     if col not in br_cat.columns:
         br_cat[col] = 0
@@ -145,13 +106,7 @@ print(f"  → Total de features  : {pt_full.shape[1]}\n")
 
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 3 – PADRONIZAÇÃO Z-SCORE
-#   REGRA FUNDAMENTAL: scaler fit SOMENTE em PT, transform em PT e BR.
-#   Isso garante que o espaço métrico de referência seja exclusivamente
-#   definido pelo ecossistema português.
 # ════════════════════════════════════════════════════════════════════════════
-print("=" * 72)
-print("PASSO 3 – Padronização Z-Score")
-print("=" * 72)
 
 scaler    = StandardScaler()
 pt_scaled = scaler.fit_transform(pt_full)   # fit + transform em PT
@@ -166,9 +121,7 @@ print(f"  → BR padronizado: shape {br_scaled.shape}\n")
 #   Fit em PT, retenção dos componentes com variância acumulada ≥ 80%,
 #   e projeção de BR no mesmo espaço.
 # ════════════════════════════════════════════════════════════════════════════
-print("=" * 72)
-print("PASSO 4 – PCA")
-print("=" * 72)
+
 
 # Diagnóstico: PCA completo para calcular variância acumulada
 pca_diag  = PCA(n_components=None, random_state=42)
@@ -245,7 +198,12 @@ for c, n in NOMES.items():
     print(f"  {n} : {int((pt['Cluster']==c).sum())} empresas PT")
 print()
 
-
+tabela2 = cstats.round(0).copy()
+tabela2['Cluster_Nome'] = tabela2.index.map(NOMES)
+tabela2['Mod_Neg_Predominante'] = pt.groupby('Cluster')['Modelo de Negócio']\
+                                    .agg(lambda x: x.value_counts().index[0])
+tabela2.to_csv(os.path.join(PASTA, 'tabela2_clusters.csv'),
+               encoding='utf-8-sig')
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 7 – CLUSTERING HIERÁRQUICO (validação – Ward linkage)
 # ════════════════════════════════════════════════════════════════════════════
@@ -268,55 +226,10 @@ for perm in permutations(range(best_k)):
 
 print(f"  → Concordância K-Means × Hierárquico: {best_acc*100:.1f}%\n")
 
-
 # ════════════════════════════════════════════════════════════════════════════
-# PASSO 8 – PROJEÇÃO E ADERÊNCIA DAS STARTUPS BRASILEIRAS
-#   • Scaler e PCA já fitados em PT → apenas transform em BR
-#   • Distância euclidiana ao centróide mais próximo
-#   • Threshold de alta aderência = P75 das distâncias internas PT
-# ════════════════════════════════════════════════════════════════════════════
-print("=" * 72)
-print("PASSO 8 – Projeção das startups brasileiras")
-print("=" * 72)
-
-dist_br             = cdist(br_pca, centroids, metric='euclidean')
-br['Cluster_BR']    = dist_br.argmin(axis=1).astype(int)
-br['Dist_Centroide'] = dist_br.min(axis=1)
-
-# Threshold: percentil 75 das distâncias das PT aos seus centróides
-pt_dists       = cdist(pt_pca, centroids, metric='euclidean').min(axis=1)
-THRESH         = float(np.percentile(pt_dists, 75))
-br['Alta_Aderencia'] = br['Dist_Centroide'] <= THRESH
-
-print(f"  → Threshold P75 (PT): {THRESH:.3f}")
-print(f"  → BR alta aderência : {int(br['Alta_Aderencia'].sum())}/{len(br)}")
-print()
-for c in range(best_k):
-    mask  = br['Cluster_BR'] == c
-    alta  = int(br.loc[mask, 'Alta_Aderencia'].sum())
-    total = int(mask.sum())
-    print(f"  {NOMES[c]}: {total} BR  |  {alta} alta aderência "
-          f"({alta/max(total,1)*100:.1f}%)")
-print()
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# PASSO 9 – EXPORTAÇÃO DOS RESULTADOS
-# ════════════════════════════════════════════════════════════════════════════
-pt['Cluster_Nome'] = pt['Cluster'].map(NOMES)
-br['Cluster_Nome'] = br['Cluster_BR'].map(NOMES)
-
-pt.to_csv('resultado_portugal.csv', index=False, encoding='utf-8-sig')
-br.to_csv('resultado_brasil.csv',   index=False, encoding='utf-8-sig')
-print("  → resultado_portugal.csv")
-print("  → resultado_brasil.csv\n")
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# PASSO 10 – GERAÇÃO DAS FIGURAS (6 figuras conforme TCC)
+# PASSO 8 – GERAÇÃO DOS GRÁFICOS DA FORMAÇÂO DOS CLUSTER PT
 # ════════════════════════════════════════════════════════════════════════════
 labels_pt = pt['Cluster'].values.astype(int)
-labels_br = br['Cluster_BR'].values.astype(int)
 
 # ── Figura 1: PCA + Elbow + Silhueta ─────────────────────────────────────
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.2))
@@ -446,6 +359,37 @@ plt.savefig('fig4.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 print("  → fig4.png")
 
+
+# ════════════════════════════════════════════════════════════════════════════
+# PASSO 9 – PROJEÇÃO E ADERÊNCIA DAS STARTUPS BRASILEIRAS
+# ════════════════════════════════════════════════════════════════════════════
+
+
+dist_br             = cdist(br_pca, centroids, metric='euclidean')
+br['Cluster_BR']    = dist_br.argmin(axis=1).astype(int)
+br['Dist_Centroide'] = dist_br.min(axis=1)
+
+# Threshold: percentil 75 das distâncias das PT aos seus centróides
+pt_dists       = cdist(pt_pca, centroids, metric='euclidean').min(axis=1)
+THRESH         = float(np.percentile(pt_dists, 75))
+br['Alta_Aderencia'] = br['Dist_Centroide'] <= THRESH
+
+print(f"  → Threshold P75 (PT): {THRESH:.3f}")
+print(f"  → BR alta aderência : {int(br['Alta_Aderencia'].sum())}/{len(br)}")
+print()
+for c in range(best_k):
+    mask  = br['Cluster_BR'] == c
+    alta  = int(br.loc[mask, 'Alta_Aderencia'].sum())
+    total = int(mask.sum())
+    print(f"  {NOMES[c]}: {total} BR  |  {alta} alta aderência "
+          f"({alta/max(total,1)*100:.1f}%)")
+print()
+
+# ════════════════════════════════════════════════════════════════════════════
+# PASSO 10 – GERAÇÃO DOS GRÁFICOS DA ADERÂNCIA DAS EMPRESAS BR
+# ════════════════════════════════════════════════════════════════════════════
+labels_br = br['Cluster_BR'].values.astype(int)
+
 # ── Figura 5: Projeção BR no espaço PT + Aderência ───────────────────────
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
 
@@ -527,11 +471,21 @@ plt.close()
 print("  → fig6.png")
 
 # ════════════════════════════════════════════════════════════════════════════
+# PASSO 11 – EXPORTAÇÃO DOS RESULTADOS
+# ════════════════════════════════════════════════════════════════════════════
+pt['Cluster_Nome'] = pt['Cluster'].map(NOMES)
+br['Cluster_Nome'] = br['Cluster_BR'].map(NOMES)
+
+pt.to_csv('resultado_portugal.csv', index=False, encoding='utf-8-sig')
+br.to_csv('resultado_brasil.csv',   index=False, encoding='utf-8-sig')
+print("  → resultado_portugal.csv")
+print("  → resultado_brasil.csv\n")
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # SUMÁRIO FINAL
 # ════════════════════════════════════════════════════════════════════════════
-print()
-print("=" * 72)
 print("  ANÁLISE CONCLUÍDA COM SUCESSO")
 print(f"  k = {best_k} clusters  |  {n_comp} PCs ({var_cumul[n_comp-1]*100:.1f}% variância)")
 print(f"  BR alta aderência: {int(br['Alta_Aderencia'].sum())}/{len(br)}")
-print("=" * 72)
+
