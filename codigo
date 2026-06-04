@@ -198,12 +198,7 @@ for c, n in NOMES.items():
     print(f"  {n} : {int((pt['Cluster']==c).sum())} empresas PT")
 print()
 
-tabela2 = cstats.round(0).copy()
-tabela2['Cluster_Nome'] = tabela2.index.map(NOMES)
-tabela2['Mod_Neg_Predominante'] = pt.groupby('Cluster')['Modelo de Negócio']\
-                                    .agg(lambda x: x.value_counts().index[0])
-tabela2.to_csv(os.path.join(PASTA, 'tabela2_clusters.csv'),
-               encoding='utf-8-sig')
+
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 7 – CLUSTERING HIERÁRQUICO (validação – Ward linkage)
 # ════════════════════════════════════════════════════════════════════════════
