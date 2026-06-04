@@ -221,6 +221,9 @@ for perm in permutations(range(best_k)):
 
 print(f"  → Concordância K-Means × Hierárquico: {best_acc*100:.1f}%\n")
 
+cstats = pt.groupby('Cluster')[NUM_FEATURES].mean()
+print(cstats.round(0))
+
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 8 – GERAÇÃO DOS GRÁFICOS DA FORMAÇÂO DOS CLUSTER PT
 # ════════════════════════════════════════════════════════════════════════════
