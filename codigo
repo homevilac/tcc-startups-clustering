@@ -23,10 +23,10 @@ COR_BR        = '#c0392b'
 CORES_CLUSTER = ['#2980b9', '#c0392b', '#27ae60', '#8e44ad', '#f39c12']
 
 plt.rcParams.update({
-    'font.family'   : 'DejaVu Sans',
-    'font.size'     : 9,
-    'axes.titlesize': 10,
-    'axes.labelsize': 9,
+    'font.family'   : 'Arial',
+    'font.size'     : 11,
+    'axes.titlesize': 11,
+    'axes.labelsize': 11,
     'figure.dpi'    : 180,
     'axes.spines.top'  : False,
     'axes.spines.right': False,
@@ -57,9 +57,6 @@ print(f"  → Total    : {len(df)} startups\n")
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 2 – SELEÇÃO E ENGENHARIA DE FEATURES
 # ════════════════════════════════════════════════════════════════════════════
-print("=" * 72)
-print("PASSO 2 – Engenharia de variáveis derivadas")
-print("=" * 72)
 
 # Features numéricas conforme projeto de pesquisa
 NUM_FEATURES = [
@@ -144,10 +141,6 @@ print()
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 5 – DETERMINAÇÃO DO K ÓTIMO (Elbow + Silhueta)
 # ════════════════════════════════════════════════════════════════════════════
-print("=" * 72)
-print("PASSO 5 – Determinação do k ótimo")
-print("=" * 72)
-
 inertias    = []
 silhouettes = []
 K_RANGE     = range(2, 9)
@@ -166,9 +159,6 @@ print(f"\n  → k ótimo: {best_k}  (Silhueta = {max(silhouettes):.4f})\n")
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 6 – K-MEANS FINAL (aplicado somente em PT)
 # ════════════════════════════════════════════════════════════════════════════
-print("=" * 72)
-print(f"PASSO 6 – K-Means final  (k = {best_k})")
-print("=" * 72)
 
 km_final  = KMeans(n_clusters=best_k, random_state=42, n_init=20)
 pt['Cluster'] = km_final.fit_predict(pt_pca)
@@ -202,9 +192,6 @@ print()
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 7 – CLUSTERING HIERÁRQUICO (validação – Ward linkage)
 # ════════════════════════════════════════════════════════════════════════════
-print("=" * 72)
-print("PASSO 7 – Clustering Hierárquico (validação)")
-print("=" * 72)
 
 Z_linkage   = linkage(pt_pca, method='ward')
 hier_labels = AgglomerativeClustering(
@@ -223,7 +210,6 @@ print(f"  → Concordância K-Means × Hierárquico: {best_acc*100:.1f}%\n")
 
 cstats = pt.groupby('Cluster')[NUM_FEATURES].mean()
 print(cstats.round(0))
-
 # ════════════════════════════════════════════════════════════════════════════
 # PASSO 8 – GERAÇÃO DOS GRÁFICOS DA FORMAÇÂO DOS CLUSTER PT
 # ════════════════════════════════════════════════════════════════════════════
@@ -238,16 +224,14 @@ ax.axhline(80, color='#e74c3c', ls='--', lw=1.2, label='Limiar 80%')
 ax.axvline(n_comp, color='#7f8c8d', ls=':', lw=1.3)
 ax.fill_between(range(1, n_comp+1), var_cumul[:n_comp]*100, alpha=0.12, color=COR_PT)
 ax.set_xlabel('Componentes'); ax.set_ylabel('Variância Acumulada (%)')
-ax.set_title('(a) Variância Acumulada – PCA', fontweight='bold')
-ax.legend(fontsize=8); ax.set_xlim(0.5, len(var_cumul)+0.5); ax.set_ylim(0, 105)
-ax.grid(True, alpha=0.25, ls='--')
+ax.legend(fontsize=11); ax.set_xlim(0.5, len(var_cumul)+0.5); ax.set_ylim(0, 105)
+ax.grid(False)
 
 ax = axes[1]
 ax.plot(K_RANGE, inertias, 'o-', color=COR_PT, lw=2, markersize=5)
 ax.axvline(best_k, color='#e74c3c', ls='--', lw=1.3, label=f'k={best_k}')
 ax.set_xlabel('Número de Clusters (k)'); ax.set_ylabel('Inércia')
-ax.set_title('(b) Método Elbow', fontweight='bold')
-ax.legend(fontsize=8); ax.set_xticks(list(K_RANGE)); ax.grid(True, alpha=0.25, ls='--')
+ax.legend(fontsize=11); ax.set_xticks(list(K_RANGE)); ax.grid(False)
 
 ax = axes[2]
 bars = ax.bar(K_RANGE, silhouettes,
@@ -257,11 +241,10 @@ ax.axvline(best_k, color='#e74c3c', ls='--', lw=1.3,
            label=f'k={best_k} ({max(silhouettes):.3f})')
 for bar, v in zip(bars, silhouettes):
     ax.text(bar.get_x()+bar.get_width()/2, v+0.004, f'{v:.3f}',
-            ha='center', va='bottom', fontsize=7)
+            ha='center', va='bottom', fontsize=11)
 ax.set_xlabel('Número de Clusters (k)'); ax.set_ylabel('Coeficiente de Silhueta')
-ax.set_title('(c) Silhueta por k', fontweight='bold')
-ax.legend(fontsize=8); ax.set_xticks(list(K_RANGE)); ax.set_ylim(0, 0.68)
-ax.grid(True, alpha=0.25, ls='--', axis='y')
+ax.legend(fontsize=11); ax.set_xticks(list(K_RANGE)); ax.set_ylim(0, 0.68)
+ax.grid(False)
 plt.tight_layout(pad=1.2)
 plt.savefig('fig1.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
@@ -280,12 +263,11 @@ for c in range(best_k):
                   marker='*', s=320, c=CORES_CLUSTER[c],
                   edgecolors='#2c3e50', linewidths=0.9, zorder=5)
     ax_sc.annotate(f'C{c+1}', (centroids[c, 0], centroids[c, 1]),
-                   fontsize=9, fontweight='bold', xytext=(6, 4),
+                   fontsize=11, fontweight='bold', xytext=(6, 4),
                    textcoords='offset points', color=CORES_CLUSTER[c])
 ax_sc.set_xlabel('PC1'); ax_sc.set_ylabel('PC2')
-ax_sc.set_title('(a) Clusters – Startups Portuguesas', fontweight='bold')
-ax_sc.legend(loc='upper right', fontsize=8, framealpha=0.9)
-ax_sc.grid(True, alpha=0.2, ls='--')
+ax_sc.legend(loc='upper right', fontsize=11, framealpha=0.9)
+ax_sc.grid(False)
 
 sil_v = silhouette_samples(pt_pca, labels_pt)
 y_lo  = 10
@@ -294,7 +276,7 @@ for c in range(best_k):
     yu  = y_lo + len(sv)
     ax_sil.fill_betweenx(np.arange(y_lo, yu), 0, sv,
                           facecolor=CORES_CLUSTER[c], alpha=0.82)
-    ax_sil.text(-0.10, (y_lo+yu)/2, f'C{c+1}', fontsize=8.5,
+    ax_sil.text(-0.10, (y_lo+yu)/2, f'C{c+1}', fontsize=11,
                 color=CORES_CLUSTER[c], fontweight='bold', va='center')
     y_lo = yu + 6
 
@@ -303,8 +285,7 @@ ax_sil.axvline(avg_sil, color='#e74c3c', ls='--', lw=1.5,
                label=f'Média: {avg_sil:.3f}')
 ax_sil.set_xlabel('Coeficiente de Silhueta')
 ax_sil.set_ylabel('Empresas por cluster')
-ax_sil.set_title('(b) Silhueta por Empresa', fontweight='bold')
-ax_sil.legend(fontsize=9); ax_sil.grid(True, alpha=0.2, ls='--', axis='x')
+ax_sil.legend(fontsize=11); ax_sil.grid(False)
 plt.tight_layout(pad=1.2)
 plt.savefig('fig2.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
@@ -319,8 +300,7 @@ ax.axhline(Z_linkage[-best_k+1, 2], color='#e74c3c', ls='--', lw=1.6,
            label=f'Corte → {best_k} clusters')
 ax.set_xlabel('Startups Portuguesas')
 ax.set_ylabel('Distância (Ward)')
-ax.set_title('Dendrograma – Clustering Hierárquico Aglomerativo (Ward)', fontweight='bold')
-ax.legend(fontsize=9); ax.grid(True, alpha=0.2, ls='--', axis='y')
+ax.legend(fontsize=11); ax.grid(False)
 plt.tight_layout(pad=1.2)
 plt.savefig('fig3.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
@@ -336,22 +316,19 @@ angles = [n / float(N) * 2 * np.pi for n in range(N)]
 angles += angles[:1]
 
 fig, axes4 = plt.subplots(1, best_k, figsize=(16, 4.2), subplot_kw=dict(polar=True))
-fig.suptitle('Perfil Médio por Cluster – Portugal (valores normalizados 0–1)',
-             fontsize=10, fontweight='bold', y=1.02)
+
 for c in range(best_k):
     ax = axes4[c]
     vals = c_n.loc[c].values.tolist(); vals += vals[:1]
     ax.plot(angles, vals, 'o-', lw=2, color=CORES_CLUSTER[c], markersize=4)
     ax.fill(angles, vals, alpha=0.20, color=CORES_CLUSTER[c])
-    ax.set_xticks(angles[:-1]); ax.set_xticklabels(SHORT, fontsize=7.5)
+    ax.set_xticks(angles[:-1]); ax.set_xticklabels(SHORT, fontsize=11)
     ax.set_yticks([0.25, 0.5, 0.75])
-    ax.set_yticklabels(['25%', '50%', '75%'], fontsize=6, color='#7f8c8d')
+    ax.set_yticklabels(['25%', '50%', '75%'], fontsize=11, color='#7f8c8d')
     ax.set_ylim(0, 1)
     n_e   = int((labels_pt == c).sum())
     label = NOMES[c].split('–')[1].strip() if '–' in NOMES[c] else NOMES[c]
-    ax.set_title(f'C{c+1} – {label}\n(n={n_e})',
-                 fontsize=8, fontweight='bold', color=CORES_CLUSTER[c], pad=10)
-    ax.grid(True, alpha=0.3)
+    ax.grid(False)
 plt.tight_layout(pad=1.2)
 plt.savefig('fig4.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
@@ -359,7 +336,7 @@ print("  → fig4.png")
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# PASSO 9 – PROJEÇÃO E ADERÊNCIA DAS STARTUPS BRASILEIRAS
+# PASSO 8 – PROJEÇÃO E ADERÊNCIA DAS STARTUPS BRASILEIRAS
 # ════════════════════════════════════════════════════════════════════════════
 
 
@@ -384,7 +361,7 @@ for c in range(best_k):
 print()
 
 # ════════════════════════════════════════════════════════════════════════════
-# PASSO 10 – GERAÇÃO DOS GRÁFICOS DA ADERÂNCIA DAS EMPRESAS BR
+# PASSO 9 – GERAÇÃO DOS GRÁFICOS DA ADERÂNCIA DAS EMPRESAS BR
 # ════════════════════════════════════════════════════════════════════════════
 labels_br = br['Cluster_BR'].values.astype(int)
 
@@ -402,9 +379,8 @@ for c in range(best_k):
     ax1.scatter(centroids[c, 0], centroids[c, 1], marker='*', s=280,
                 c=CORES_CLUSTER[c], edgecolors='#2c3e50', linewidths=0.9, zorder=5)
 ax1.set_xlabel('PC1'); ax1.set_ylabel('PC2')
-ax1.set_title('(a) Brasil no espaço de referência PT', fontweight='bold')
-ax1.legend(loc='upper right', fontsize=7.5, framealpha=0.9)
-ax1.grid(True, alpha=0.2, ls='--')
+ax1.legend(loc='upper right', fontsize=11, framealpha=0.9)
+ax1.grid(False)
 
 x  = np.arange(best_k); w = 0.38
 al = [int(br.loc[br['Cluster_BR'] == c, 'Alta_Aderencia'].sum()) for c in range(best_k)]
@@ -417,15 +393,14 @@ for bar in list(b1) + list(b2):
     h = bar.get_height()
     if h > 0:
         ax2.text(bar.get_x()+bar.get_width()/2, h+0.25, str(int(h)),
-                 ha='center', va='bottom', fontsize=8.5, fontweight='bold')
+                 ha='center', va='bottom', fontsize=11, fontweight='bold')
 totais = [int((br['Cluster_BR'] == c).sum()) for c in range(best_k)]
 pcts   = [f'{a/max(t,1)*100:.0f}%' for a, t in zip(al, totais)]
 ax2.set_xticks(x)
-ax2.set_xticklabels([f'C{c+1}\n({totais[c]} emp.)\n{pcts[c]}'
-                      for c in range(best_k)], fontsize=8)
+ax2.set_xticklabels([f'C{c+1}\n({totais[c]} emp.)'
+                      for c in range(best_k)], fontsize=11)
 ax2.set_ylabel('Empresas Brasileiras')
-ax2.set_title(f'(b) Aderência por cluster\n(threshold = {THRESH:.3f})', fontweight='bold')
-ax2.legend(fontsize=9); ax2.grid(True, alpha=0.2, ls='--', axis='y')
+ax2.legend(fontsize=11); ax2.grid(False)
 plt.tight_layout(pad=1.2)
 plt.savefig('fig5.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
@@ -442,11 +417,10 @@ bb  = ax_d.bar(x+w/2, brc, w, label='Brasil',   color=COR_BR, alpha=0.85, edgeco
 for bar in list(bp) + list(bb):
     h = bar.get_height()
     ax_d.text(bar.get_x()+bar.get_width()/2, h+0.3, str(int(h)),
-              ha='center', va='bottom', fontsize=8.5, fontweight='bold')
+              ha='center', va='bottom', fontsize=11, fontweight='bold')
 ax_d.set_xticks(x); ax_d.set_xticklabels([f'C{c+1}' for c in range(best_k)])
 ax_d.set_ylabel('Número de Empresas')
-ax_d.set_title('(a) Distribuição por Cluster', fontweight='bold')
-ax_d.legend(); ax_d.grid(True, alpha=0.2, ls='--', axis='y')
+ax_d.legend(); ax_d.grid(False)
 
 models = ['B2B', 'B2B2C', 'B2C', 'Unknown']
 pt_m   = pt['Modelo de Negócio'].value_counts(normalize=True) * 100
@@ -457,19 +431,18 @@ x2     = np.arange(len(models))
 ax_m.bar(x2-w/2, pv, w, label='Portugal', color=COR_PT, alpha=0.85, edgecolor='white')
 ax_m.bar(x2+w/2, bv, w, label='Brasil',   color=COR_BR, alpha=0.85, edgecolor='white')
 for i, (pval, bval) in enumerate(zip(pv, bv)):
-    if pval > 1: ax_m.text(i-w/2, pval+0.5, f'{pval:.0f}%', ha='center', va='bottom', fontsize=8)
-    if bval > 1: ax_m.text(i+w/2, bval+0.5, f'{bval:.0f}%', ha='center', va='bottom', fontsize=8)
+    if pval > 1: ax_m.text(i-w/2, pval+0.5, f'{pval:.0f}%', ha='center', va='bottom', fontsize=11)
+    if bval > 1: ax_m.text(i+w/2, bval+0.5, f'{bval:.0f}%', ha='center', va='bottom', fontsize=11)
 ax_m.set_xticks(x2); ax_m.set_xticklabels(models)
 ax_m.set_ylabel('Participação (%)')
-ax_m.set_title('(b) Modelo de Negócio por País', fontweight='bold')
-ax_m.legend(); ax_m.grid(True, alpha=0.2, ls='--', axis='y')
+ax_m.legend(); ax_m.grid(False)
 plt.tight_layout(pad=1.2)
 plt.savefig('fig6.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 print("  → fig6.png")
 
 # ════════════════════════════════════════════════════════════════════════════
-# PASSO 11 – EXPORTAÇÃO DOS RESULTADOS
+# PASSO 10 – EXPORTAÇÃO DOS RESULTADOS
 # ════════════════════════════════════════════════════════════════════════════
 pt['Cluster_Nome'] = pt['Cluster'].map(NOMES)
 br['Cluster_Nome'] = br['Cluster_BR'].map(NOMES)
@@ -486,4 +459,3 @@ print("  → resultado_brasil.csv\n")
 print("  ANÁLISE CONCLUÍDA COM SUCESSO")
 print(f"  k = {best_k} clusters  |  {n_comp} PCs ({var_cumul[n_comp-1]*100:.1f}% variância)")
 print(f"  BR alta aderência: {int(br['Alta_Aderencia'].sum())}/{len(br)}")
-
