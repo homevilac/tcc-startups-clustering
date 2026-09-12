@@ -380,7 +380,7 @@ plt.close()
 # ═════════════════════════════════════════════════════════
 # PASSO 10 -- LOADINGS E SENSIBILIDADE DO THRESHOLD
 # ═════════════════════════════════════════════════════════
-loadings = pd.DataFrame(pca.components_.T, columns=[f'PC{i+1}' for i in range(pca.n_components_)], index=NUM_FEATURES)l
+loadings = pd.DataFrame(pca.components_.T, columns=[f'PC{i+1}' for i in range(pca.n_components_)], index=NUM_FEATURES)
 print("\nLoadings:"); print(loadings.round(3))
 
 percentis = [50, 75, 90]
