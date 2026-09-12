@@ -1,5 +1,3 @@
-Código-fonte completo:
-
 import warnings
 warnings.filterwarnings('ignore')
 
