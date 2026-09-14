@@ -23,10 +23,23 @@ COR_PT = '#1a5276'
 COR_BR = '#c0392b'
 CORES_CLUSTER = ['#2980b9', '#c0392b', '#27ae60', '#8e44ad']
 
+
+# ─────────────────────────────────────────────────────────
 plt.rcParams.update({
+    'font.family': 'Liberation Sans',
     'font.size': 11, 'axes.titlesize': 11, 'axes.labelsize': 11, 'figure.dpi': 180,
     'axes.spines.top': False, 'axes.spines.right': False,
+    'axes.edgecolor': 'black', 'axes.linewidth': 1.5,
+    'xtick.color': 'black', 'ytick.color': 'black',
+    'text.color': 'black', 'axes.labelcolor': 'black',
 })
+
+def add_panel_label(ax, letter, x=-0.14, y=1.06):
+    """Identificação de painel exigida pelo Manual (item 15.1): letra
+    maiúscula no canto superior esquerdo de cada painel, sem delimitadores
+    de pontuação. Usar apenas em figuras com mais de um painel."""
+    ax.text(x, y, letter, transform=ax.transAxes, fontsize=14, fontweight='bold',
+            va='bottom', ha='left', color='black')
 
 # ═════════════════════════════════════════════════════════
 # PASSO 1 -- CARGA E SEPARAÇÃO DOS DADOS
@@ -59,11 +72,7 @@ for col in NUM_FEATURES:
     pt[col] = pd.to_numeric(pt[col].replace(EXCEL_ERRORS, np.nan), errors='coerce')
     br[col] = pd.to_numeric(br[col].replace(EXCEL_ERRORS, np.nan), errors='coerce')
 
-# CORREÇÃO: a coluna "Captação per HC" original misturava dois critérios --
-# para 147 das 235 empresas (63%), o valor usava o ponto médio da faixa de
-# headcount em vez do número real de funcionários. Recalcula-se aqui de forma
-# homogênea para toda a amostra, usando sempre o número real de funcionários
-# (coluna "Funcionários", sem valores ausentes ou <= 0).
+
 pt['Captação per HC'] = pt['Total Captado (USD)'] / pt['Funcionários']
 br['Captação per HC'] = br['Total Captado (USD)'] / br['Funcionários']
 
@@ -74,10 +83,7 @@ pt.loc[pt[IH_COL] < 0, IH_COL] = np.nan
 br.loc[br[IH_COL] < 0, IH_COL] = np.nan
 print(f" -> Intensidade Histórica negativa tratada como ausente: {n_neg_pt} PT, {n_neg_br} BR")
 
-# CORREÇÃO: empresas cuja Data do Último Financiamento antecede a Fundação
-# declarada têm Idade (e, por consequência, Intensidade Histórica) logicamente
-# inválida. Identificadas: Nonius (PT) e Zenvia (BR). Tratadas como ausentes,
-# sujeitas à mesma imputação por mediana das demais.
+
 for base in (pt, br):
     fund = pd.to_numeric(base['Fundação'], errors='coerce')
     ult_finan = pd.to_datetime(base['Data Últ. Finan.'], errors='coerce')
@@ -117,13 +123,7 @@ for i, c1 in enumerate(NUM_FEATURES):
         r, p = pearsonr(pt[c1], pt[c2])
         sig = "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else "ns"
         print(f"  {c1} x {c2}: r={r:+.3f}, p={p:.4f} {sig}")
-# Resultado: Cap/HC x Int.Hist. (r=0,728***) já discutido nos loadings de PC1.
-# Momentum x Cap/HC (r=-0,355***) e Momentum x Int.Hist. (r=-0,399***) --
-# ambos significativos, sustentam a composição de PC1 (Momentum carrega
-# negativamente, Cap/HC e Int.Hist. carregam positivamente). Scores Deeptech
-# e Analytics não correlacionam significativamente com nenhuma outra
-# variável (p>0,05 em todos os pares), consistente com PC2 como eixo
-# independente de perfil tecnológico.
+
 
 
 # ═════════════════════════════════════════════════════════
@@ -160,11 +160,7 @@ for k in K_RANGE:
     silhouettes.append(float(silhouette_score(pt_pca, lbl)))
     print(f"    k={k} | Inércia={km.inertia_:>10.1f} | Silhueta={silhouettes[-1]:.4f}")
 
-# No intervalo testado, a Silhueta não apresenta máximo interior nítido
-# (cresce até a borda k=8); o critério decisivo passa a ser o método Elbow --
-# o ponto de maior desaceleração na queda marginal de inércia (maior "quebra"
-# na taxa de melhoria, não a maior queda absoluta, que ocorre trivialmente
-# entre os primeiros valores de k).
+
 K_LIST = list(K_RANGE)
 deltas = np.array([inertias[i] - inertias[i+1] for i in range(len(inertias)-1)])
 decel = deltas[:-1] - deltas[1:]
@@ -179,8 +175,6 @@ km_final = KMeans(n_clusters=best_k, random_state=42, n_init=20)
 pt['Cluster'] = km_final.fit_predict(pt_pca)
 centroids = km_final.cluster_centers_
 
-# Nomes atribuídos dinamicamente por característica dominante, não por índice
-# fixo do K-Means (que é arbitrário e pode mudar a cada novo ajuste do modelo).
 cstats_naming = pt.groupby('Cluster')[NUM_FEATURES].mean()
 restantes = list(cstats_naming.index)
 NOMES_MANUAIS = {}
@@ -220,23 +214,29 @@ cstats = pt.groupby('Cluster')[NUM_FEATURES].mean()
 print(cstats.round(3))
 
 # ═════════════════════════════════════════════════════════
-# PASSO 8 -- FIGURAS (1 a 6)
+# PASSO 8 -- FIGURAS (1 a 6) -- formatação conforme Manual PECEGE
 # ═════════════════════════════════════════════════════════
 labels_pt = pt['Cluster'].values.astype(int)
 
+# ---------- FIGURA 1 (3 painéis: A, B, C) ----------
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.2))
 ax = axes[0]
 ax.plot(range(1, len(var_cumul)+1), var_cumul*100, 'o-', color=COR_PT, lw=2, markersize=5)
 ax.axhline(80, color='#e74c3c', ls='--', lw=1.2, label='Limiar 80%')
 ax.axvline(n_comp, color='#7f8c8d', ls=':', lw=1.3)
-ax.fill_between(range(1, n_comp+1), var_cumul[:n_comp]*100, alpha=0.12, color=COR_PT)
+# CORREÇÃO: removido o preenchimento sombreado (fill_between) -- Manual
+# Tabela 8, "Preenchimento: Não deve conter".
 ax.set_xlabel('Componentes'); ax.set_ylabel('Variância Acumulada (%)')
 ax.legend(fontsize=11); ax.grid(False)
+add_panel_label(ax, 'A')  # CORREÇÃO: identificação de painel (Manual 15.1)
+
 ax = axes[1]
 ax.plot(K_RANGE, inertias, 'o-', color=COR_PT, lw=2, markersize=5)
 ax.axvline(best_k, color='#e74c3c', ls='--', lw=1.3, label=f'k={best_k} (cotovelo)')
 ax.set_xlabel('Número de Clusters (k)'); ax.set_ylabel('Inércia')
 ax.legend(fontsize=11); ax.set_xticks(list(K_RANGE)); ax.grid(False)
+add_panel_label(ax, 'B')
+
 ax = axes[2]
 bars = ax.bar(K_RANGE, silhouettes, color=[CORES_CLUSTER[i % 4] for i in range(len(K_RANGE))],
               edgecolor='white', linewidth=0.6, width=0.6)
@@ -245,10 +245,13 @@ for bar, v in zip(bars, silhouettes):
     ax.text(bar.get_x()+bar.get_width()/2, v+0.004, f'{v:.3f}', ha='center', va='bottom', fontsize=10)
 ax.set_xlabel('Número de Clusters (k)'); ax.set_ylabel('Coeficiente de Silhueta')
 ax.legend(fontsize=11); ax.set_xticks(list(K_RANGE)); ax.grid(False)
-plt.tight_layout(pad=1.2)
+add_panel_label(ax, 'C')
+
+plt.tight_layout(pad=1.6)
 plt.savefig('fig1.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 
+# ---------- FIGURA 2 (2 painéis: A, B) ----------
 fig, (ax_sc, ax_sil) = plt.subplots(1, 2, figsize=(13, 5.5))
 for c in range(best_k):
     mask = labels_pt == c
@@ -262,6 +265,8 @@ for c in range(best_k):
                    xytext=(6, 4), textcoords='offset points', color=CORES_CLUSTER[c])
 ax_sc.set_xlabel('PC1'); ax_sc.set_ylabel('PC2')
 ax_sc.legend(loc='upper right', fontsize=10, framealpha=0.9); ax_sc.grid(False)
+add_panel_label(ax_sc, 'A')
+
 sil_v = silhouette_samples(pt_pca, labels_pt)
 y_lo = 10
 for c in range(best_k):
@@ -274,10 +279,13 @@ avg_sil = float(np.mean(sil_v))
 ax_sil.axvline(avg_sil, color='#e74c3c', ls='--', lw=1.5, label=f'Média: {avg_sil:.3f}')
 ax_sil.set_xlabel('Coeficiente de Silhueta'); ax_sil.set_ylabel('Empresas por cluster')
 ax_sil.legend(fontsize=11); ax_sil.grid(False)
-plt.tight_layout(pad=1.2)
+add_panel_label(ax_sil, 'B')
+
+plt.tight_layout(pad=1.6)
 plt.savefig('fig2.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 
+# ---------- FIGURA 3 (painel único -- sem letra de painel) ----------
 fig, ax = plt.subplots(figsize=(13, 4.5))
 dendrogram(Z_linkage, ax=ax, color_threshold=Z_linkage[-best_k+1, 2], leaf_rotation=90,
            leaf_font_size=4.5, above_threshold_color='#bdc3c7', count_sort='ascending')
@@ -288,12 +296,15 @@ plt.tight_layout(pad=1.2)
 plt.savefig('fig3.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 
+# ---------- FIGURA 4 (4 painéis: A, B, C, D -- SEM título interno) ----------
 c_m = pt.groupby('Cluster')[NUM_FEATURES].mean()
 norm_ = MinMaxScaler()
 c_n = pd.DataFrame(norm_.fit_transform(c_m), columns=NUM_FEATURES, index=c_m.index)
 SHORT = ['Cap/HC', 'Int.\nHist.', 'Momentum', 'Deep\nTech', 'Analytics']
 N = len(SHORT)
 angles = [n / float(N) * 2 * np.pi for n in range(N)]; angles += angles[:1]
+PANEL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
+fig4_legend = []  # correspondência letra -> cluster, para a legenda externa no .docx
 fig, axes4 = plt.subplots(1, best_k, figsize=(13, 4.2), subplot_kw=dict(polar=True))
 for c in range(best_k):
     ax = axes4[c]
@@ -304,12 +315,15 @@ for c in range(best_k):
     ax.set_yticks([0.25, 0.5, 0.75]); ax.set_yticklabels(['25%', '50%', '75%'], fontsize=9, color='#7f8c8d')
     ax.set_ylim(0, 1)
     n_e = int((labels_pt == c).sum())
-    label = NOMES[c].split('–')[1].strip()
-    ax.set_title(f'C{c+1} – {label}\n(n={n_e})', fontsize=9, fontweight='bold', color=CORES_CLUSTER[c])
+    letter = PANEL_LETTERS[c]
+    ax.text(0.02, 1.14, letter, transform=ax.transAxes, fontsize=14, fontweight='bold',
+            va='bottom', ha='left', color='black')
     ax.grid(False)
-plt.tight_layout(pad=1.2)
+    fig4_legend.append(f"({letter}) {NOMES[c]} (n={n_e})")
+plt.tight_layout(pad=1.6)
 plt.savefig('fig4.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
+print("Fig4 -- legenda externa (usar na legenda do documento):", "; ".join(fig4_legend))
 
 # ═════════════════════════════════════════════════════════
 # PASSO 9 -- PROJEÇÃO E ADERÊNCIA DAS STARTUPS BRASILEIRAS
@@ -332,6 +346,7 @@ for c in range(best_k):
 
 labels_br = br['Cluster_BR'].values.astype(int)
 
+# ---------- FIGURA 5 (2 painéis: A, B) ----------
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
 ax1.scatter(pt_pca[:, 0], pt_pca[:, 1], c='#d5d8dc', s=40, alpha=0.55,
             edgecolors='white', linewidths=0.3, label='Portugal (referência)', zorder=2)
@@ -344,6 +359,8 @@ for c in range(best_k):
                 edgecolors='#2c3e50', linewidths=0.9, zorder=5)
 ax1.set_xlabel('PC1'); ax1.set_ylabel('PC2')
 ax1.legend(loc='upper right', fontsize=9, framealpha=0.9); ax1.grid(False)
+add_panel_label(ax1, 'A')
+
 x = np.arange(best_k); w = 0.38
 al = [int(br.loc[br['Cluster_BR'] == c, 'Alta_Aderencia'].sum()) for c in range(best_k)]
 bx = [int((br['Cluster_BR'] == c).sum()) - a for c, a in enumerate(al)]
@@ -357,10 +374,13 @@ totais = [int((br['Cluster_BR'] == c).sum()) for c in range(best_k)]
 ax2.set_xticks(x); ax2.set_xticklabels([f'C{c+1}\n({totais[c]} emp.)' for c in range(best_k)], fontsize=10)
 ax2.set_ylabel('Empresas Brasileiras')
 ax2.legend(fontsize=11); ax2.grid(False)
-plt.tight_layout(pad=1.2)
+add_panel_label(ax2, 'B')
+
+plt.tight_layout(pad=1.6)
 plt.savefig('fig5.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 
+# ---------- FIGURA 6 (painel único -- sem letra de painel) ----------
 fig, ax_d = plt.subplots(figsize=(9, 5.2))
 ptc = [int((labels_pt == c).sum()) for c in range(best_k)]
 brc = [int((labels_br == c).sum()) for c in range(best_k)]
@@ -454,17 +474,11 @@ print(f" -> Versão com OHE (histórica): Cramér's V = {v_ohe:.3f} | ARI = {ari
 scores_all = ['Score Deeptech', 'Score Cloud Native', 'Score DevTools', 'Score Analytics', 'Score Growth Stack']
 print("\nCorrelação entre os 5 scores de tecnologia (Portugal):")
 print(pt_ohe[scores_all].corr().round(2))
-# Score Deeptech é o mais independente dos demais (correlações 0,03-0,19).
-# Cloud Native x DevTools: r=0,58 (redundantes). Analytics x Growth Stack: r=0,49
-# (redundantes). Optou-se por Deeptech + Analytics, evitando scores correlacionados.
+
 
 # ═════════════════════════════════════════════════════════
 # ADENDO 3 -- ESTABILIDADE DA CLUSTERIZAÇÃO POR BOOTSTRAP
 # ═════════════════════════════════════════════════════════
-# IMPORTANTE: avalia a estabilidade do K-Means dado o espaço PCA JÁ CALCULADO
-# (pt_pca) -- não reavalia a sensibilidade do pipeline completo (limpeza,
-# correção do Cap/HC, transformação log, padronização, PCA) a diferentes
-# amostras, apenas a etapa de clusterização em si.
 np.random.seed(42)
 n = len(pt_pca)
 B = 1000
@@ -529,22 +543,13 @@ best_k_ne_elbow = K_LIST_NE[int(np.argmax(decel_ne)) + 1]
 best_k_ne_sil = K_LIST_NE[int(np.argmax(silhouettes_ne))]
 print(f" -> k ótimo sem Ethena (Elbow): {best_k_ne_elbow}")
 print(f" -> k ótimo sem Ethena (Silhueta isolada): {best_k_ne_sil}")
-# Resultado: sem a Ethena, tanto o Elbow quanto a Silhueta convergem para k=5
-# (não k=4), com Silhueta máxima de 0,269 -- inferior à obtida com a Ethena
-# incluída (0,307). Optou-se por manter k=4 com a amostra completa (105
-# empresas), reconhecendo essa sensibilidade como limitação declarada no texto.
+
 
 
 # ═════════════════════════════════════════════════════════
 # ADENDO 5 -- ESTATÍSTICA DE HOPKINS (TENDÊNCIA DE AGRUPAMENTO)
 # ═════════════════════════════════════════════════════════
-# H = soma(U) / (soma(U) + soma(W)), onde U = distância de pontos aleatórios
-# uniformes até a empresa real mais próxima, e W = distância de empresas
-# reais amostradas até sua vizinha real mais próxima (Lawson e Jurs, 1990).
-# CONVENÇÃO: H próximo de 0,5 = sem tendência de agrupamento; H > 0,75 =
-# tendência de agrupamento a 90% de confiança. Parte da literatura reporta
-# a estatística complementar (1 - H, ex.: pacote R "clustertend"), com
-# leitura invertida -- a fórmula abaixo segue Lawson e Jurs (1990) original.
+
 from sklearn.neighbors import NearestNeighbors
 
 def hopkins_statistic(X, sampling_size, rng):
@@ -573,7 +578,7 @@ print(f" -> Hopkins (espaço PCA, 500 réplicas): média={results_pca.mean():.3f
       f"{np.percentile(results_pca,95):.3f}")
 print(f" -> Hopkins (espaço padronizado pré-PCA, 500 réplicas): média={results_raw.mean():.3f}, "
       f"DP={results_raw.std():.3f}")
-# Resultado: H=0,755 (PCA) e 0,739 (pré-PCA) – Os valores obtidos, próximos ou superiores # a 0,75, indicam tendência de agrupamento nos dados e fornecem suporte adicional à
-# aplicação de técnicas de clusterização 
-# convencionalmente associado a tendência de agrupamento, sustentando que a
-# amostra portuguesa tem estrutura de agrupamento genuína.
+# Resultado: H=0,755 (PCA) e 0,739 (pré-PCA) -- os valores obtidos, próximos ou
+# superiores a 0,75, indicam tendência de agrupamento nos dados e fornecem
+# suporte adicional à aplicação de técnicas de clusterização, sustentando que
+# a amostra portuguesa tem estrutura de agrupamento genuína.
