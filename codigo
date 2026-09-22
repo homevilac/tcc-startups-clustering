@@ -126,6 +126,34 @@ for i, c1 in enumerate(NUM_FEATURES):
 
 
 
+
+# ═════════════════════════════════════════════════════════
+# ADEQUAÇÃO DOS DADOS À PCA -- BARTLETT E KMO (Portugal)
+# ═════════════════════════════════════════════════════════
+from scipy.stats import chi2
+
+R_corr = np.corrcoef(pt[NUM_FEATURES].values, rowvar=False)
+n_obs, p_var = len(pt), len(NUM_FEATURES)
+
+# Teste de esfericidade de Bartlett -- H0: matriz de correlação = identidade
+chi2_bart = -(n_obs - 1 - (2 * p_var + 5) / 6) * np.log(np.linalg.det(R_corr))
+gl_bart = p_var * (p_var - 1) / 2
+p_bart = chi2.sf(chi2_bart, gl_bart)
+print(f"\nBartlett: chi2 = {chi2_bart:.2f} | gl = {gl_bart:.0f} | p = {p_bart:.2e}")
+
+# KMO -- compara correlações simples com correlações parciais
+R_inv = np.linalg.inv(R_corr)
+P_parc = -R_inv / np.sqrt(np.outer(np.diag(R_inv), np.diag(R_inv)))
+R0, P0 = R_corr.copy(), P_parc.copy()
+np.fill_diagonal(R0, 0); np.fill_diagonal(P0, 0)
+kmo_global = (R0**2).sum() / ((R0**2).sum() + (P0**2).sum())
+kmo_var = (R0**2).sum(axis=0) / ((R0**2).sum(axis=0) + (P0**2).sum(axis=0))
+print(f"KMO global: {kmo_global:.3f}")
+for c, v in zip(NUM_FEATURES, kmo_var):
+    print(f"  KMO individual -- {c}: {v:.3f}")
+# Resultado: Bartlett chi2 = 108,27 (gl = 10; p < 0,001); KMO global = 0,544
+# (Analytics = 0,225; Deeptech = 0,582; Cap/HC = 0,526; Int. Hist. = 0,534; Momentum = 0,835)
+
 # ═════════════════════════════════════════════════════════
 # PASSO 3 -- PADRONIZAÇÃO Z-SCORE
 # ═════════════════════════════════════════════════════════
@@ -147,6 +175,33 @@ br_pca = pca.transform(br_scaled)
 print(f" -> Componentes retidos: {n_comp} | Variância acumulada: {var_cumul[n_comp-1]*100:.1f}%")
 for i, ev in enumerate(pca.explained_variance_ratio_):
     print(f"    PC{i+1}: {ev*100:.1f}%")
+
+# ═════════════════════════════════════════════════════════
+# PASSO 4b -- DIAGNÓSTICOS DO PCA: AUTOVALORES, CARGAS E COMUNALIDADES
+# ═════════════════════════════════════════════════════════
+autovalores = pca_diag.explained_variance_
+print("\nAutovalores:")
+for i, (ev, vr) in enumerate(zip(autovalores, pca_diag.explained_variance_ratio_)):
+    print(f"  PC{i+1}: autovalor = {ev:.3f} | variância = {vr*100:.1f}%")
+print(f"  Componentes com autovalor > 1 (Kaiser): {int((autovalores > 1).sum())}")
+print(f"  Componentes com autovalor > 0,7 (Jolliffe): {int((autovalores > 0.7).sum())}")
+print(f"  Componentes retidos pelo critério de 80% (projeto): {n_comp}")
+
+# Coeficientes dos autovetores (pesos de cada variável em cada componente)
+coef_df = pd.DataFrame(pca.components_.T, index=NUM_FEATURES,
+                       columns=[f'PC{i+1}' for i in range(n_comp)])
+print("\nCoeficientes dos autovetores:")
+print(coef_df.round(3).to_string())
+
+# Cargas fatoriais (correlação variável x componente) e comunalidades
+cargas = pca.components_.T * np.sqrt(pca.explained_variance_)
+cargas_df = pd.DataFrame(cargas, index=NUM_FEATURES,
+                         columns=[f'PC{i+1}' for i in range(n_comp)])
+cargas_df['Comunalidade'] = (cargas**2).sum(axis=1)
+print("\nCargas fatoriais e comunalidades:")
+print(cargas_df.round(3).to_string())
+# Resultado: autovalores 2,048 / 1,129 / 0,927 / 0,706 / 0,239 (Kaiser reteria 2; Jolliffe 4; 80% retém 3).
+# Comunalidades: Cap/HC 0,828; Int. Hist. 0,827; Momentum 0,475; Deeptech 0,981; Analytics 0,993.
 
 # ═════════════════════════════════════════════════════════
 # PASSO 5 -- SELEÇÃO DE K (ELBOW + SILHUETA)
@@ -212,6 +267,12 @@ print(f" -> Concordância K-Means x Hierárquico: {best_acc*100:.1f}%")
 
 cstats = pt.groupby('Cluster')[NUM_FEATURES].mean()
 print(cstats.round(3))
+
+# Posição média de cada cluster nos componentes (inclui PC3, não visualizado na Figura 2)
+centr_pc = pd.DataFrame(pt_pca, columns=[f'PC{i+1}' for i in range(n_comp)])
+centr_pc['Cluster'] = [NOMES[c] for c in pt['Cluster']]
+print("\nMédia de cada cluster nos componentes principais:")
+print(centr_pc.groupby('Cluster').mean().round(2).to_string())
 
 # ═════════════════════════════════════════════════════════
 # PASSO 8 -- FIGURAS (1 a 6) -- formatação conforme Manual PECEGE
@@ -471,10 +532,42 @@ print(f" -> Versão com OHE (histórica): Cramér's V = {v_ohe:.3f} | ARI = {ari
 # ═════════════════════════════════════════════════════════
 # ADENDO 2 -- POR QUE RETER APENAS SCORE DEEPTECH E SCORE ANALYTICS
 # ═════════════════════════════════════════════════════════
+SCORES_EXTRAS = ['Score Cloud Native', 'Score DevTools', 'Score Growth Stack']
 scores_all = ['Score Deeptech', 'Score Cloud Native', 'Score DevTools', 'Score Analytics', 'Score Growth Stack']
-print("\nCorrelação entre os 5 scores de tecnologia (Portugal):")
-print(pt_ohe[scores_all].corr().round(2))
+for c in SCORES_EXTRAS:
+    pt[c] = pd.to_numeric(pt[c].replace(EXCEL_ERRORS, np.nan), errors='coerce')
+    pt[c] = pt[c].fillna(pt[c].median())
 
+# (a) Correlação entre os 5 scores de tecnologia, com significância
+print("\nCorrelação entre os 5 scores de tecnologia (Portugal):")
+print(pt[scores_all].corr().round(3).to_string())
+for i, a in enumerate(scores_all):
+    for b in scores_all[i+1:]:
+        r, p = pearsonr(pt[a], pt[b])
+        print(f"  {a} x {b}: r={r:+.3f}, p={p:.4f}")
+
+# (b) Sensibilidade: incluir os scores excluídos no modelo final, mantido k = best_k
+def testar_especificacao(features, k):
+    X = StandardScaler().fit_transform(pt[features])
+    diag = PCA(random_state=42).fit(X)
+    nc = int(np.argmax(np.cumsum(diag.explained_variance_ratio_) >= 0.80) + 1)
+    Xp = PCA(n_components=nc, random_state=42).fit_transform(X)
+    lab = KMeans(n_clusters=k, random_state=42, n_init=20).fit_predict(Xp)
+    return {'componentes': nc,
+            'silhueta': silhouette_score(Xp, lab),
+            'ARI vs final': adjusted_rand_score(pt['Cluster'].values, lab)}
+
+especificacoes = {
+    'Modelo final':               NUM_FEATURES,
+    '+ Cloud Native':             NUM_FEATURES + ['Score Cloud Native'],
+    '+ DevTools':                 NUM_FEATURES + ['Score DevTools'],
+    '+ Cloud Native + DevTools':  NUM_FEATURES + ['Score Cloud Native', 'Score DevTools'],
+    '+ Growth Stack':             NUM_FEATURES + ['Score Growth Stack'],
+}
+sens_scores = pd.DataFrame({n: testar_especificacao(f, best_k) for n, f in especificacoes.items()}).T
+print(f"\nSensibilidade à inclusão dos scores excluídos (k = {best_k}):")
+print(sens_scores.round(3).to_string())
+# Resultado: Silhueta cai de 0,307 (final) para 0,243-0,259; ARI vs final entre 0,25 e 0,76.
 
 # ═════════════════════════════════════════════════════════
 # ADENDO 3 -- ESTABILIDADE DA CLUSTERIZAÇÃO POR BOOTSTRAP
