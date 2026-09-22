@@ -108,6 +108,22 @@ pt_full = pt[NUM_FEATURES].reset_index(drop=True)
 br_full = br[NUM_FEATURES].reset_index(drop=True)
 print(f" -> Features utilizadas ({len(NUM_FEATURES)}): {NUM_FEATURES}")
 
+# ═════════════════════════════════════════════════════════
+# PASSO 2b -- ESTATÍSTICA DESCRITIVA DAS VARIÁVEIS DO MODELO (Tabela 2)
+# ═════════════════════════════════════════════════════════
+from scipy.stats import skew
+descr = pd.DataFrame({
+    'Média': pt[NUM_FEATURES].mean(),
+    'DP': pt[NUM_FEATURES].std(),
+    'Mínimo': pt[NUM_FEATURES].min(),
+    'Máximo': pt[NUM_FEATURES].max(),
+    'Assimetria': pt[NUM_FEATURES].apply(skew),
+})
+print("\nEstatística descritiva (Portugal, após log das variáveis monetárias):")
+print(descr.round(2).to_string())
+mom = pt['Momentum (%ult aporte/total captado)']
+print(f"  Momentum = 1: {(mom >= 0.999).mean()*100:.0f}% das startups portuguesas")
+
 
 # ═════════════════════════════════════════════════════════
 # CORRELAÇÃO DE PEARSON ENTRE AS 5 VARIÁVEIS DO MODELO
@@ -675,3 +691,27 @@ print(f" -> Hopkins (espaço padronizado pré-PCA, 500 réplicas): média={resul
 # superiores a 0,75, indicam tendência de agrupamento nos dados e fornecem
 # suporte adicional à aplicação de técnicas de clusterização, sustentando que
 # a amostra portuguesa tem estrutura de agrupamento genuína.
+
+
+# ═════════════════════════════════════════════════════════
+# ADENDO 6 -- TABELAS DE CONTINGÊNCIA
+# ═════════════════════════════════════════════════════════
+# (a) Cluster x Modelo de Negócio, com qui-quadrado e verificação das frequências esperadas
+modelo = pt['Modelo de Negócio'].fillna('Unknown')
+tab_cm = pd.crosstab(pt['Cluster'].map(NOMES), modelo)
+print("\nCluster x Modelo de Negócio:")
+print(pd.crosstab(pt['Cluster'].map(NOMES), modelo, margins=True, margins_name='Total').to_string())
+chi_cm, p_cm, gl_cm, esp_cm = chi2_contingency(tab_cm)
+print(f"  Qui-quadrado = {chi_cm:.2f} | gl = {gl_cm} | p = {p_cm:.4f} | Cramér's V = {cramers_v(tab_cm):.3f}")
+print(f"  Caselas com frequência esperada < 5: {(esp_cm < 5).mean()*100:.0f}% (tolerância usual: 20%)")
+
+# (b) K-Means x Hierárquico, com rótulos pareados de forma ótima
+cont_kh = pd.crosstab(pt['Cluster'], hier_labels).values
+lin, col = linear_sum_assignment(-cont_kh)
+mapa_h = dict(zip(col, lin))
+hier_nomeado = pd.Series([NOMES[mapa_h[l]] for l in hier_labels], name='Hierárquico')
+print("\nK-Means x Clustering Hierárquico:")
+print(pd.crosstab(pt['Cluster'].map(NOMES).rename('K-Means'), hier_nomeado,
+                  margins=True, margins_name='Total').to_string())
+diag_kh = sum(cont_kh[mapa_h[c], c] for c in range(best_k))
+print(f"  Concordância (diagonal): {diag_kh}/{len(pt)} = {diag_kh/len(pt)*100:.1f}%")
