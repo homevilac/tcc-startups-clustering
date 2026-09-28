@@ -47,9 +47,6 @@ def add_panel_label(ax, letter, x=-0.14, y=1.06):
 df = pd.read_excel('Dados MBA.xlsx', sheet_name='Base Final')
 df.columns = [c.replace('NegÃ³cio', 'Negócio') for c in df.columns]
 
-# CORREÇÃO: a empresa "Meight" (Portugal) aparecia duplicada na base -- as duas
-# linhas são idênticas em todas as variáveis usadas no modelo. Removida a
-# duplicata, mantendo uma única ocorrência por empresa/país.
 n_antes = len(df)
 df = df.drop_duplicates(subset=['Empresa', 'País'], keep='first').reset_index(drop=True)
 print(f" -> Duplicatas removidas: {n_antes - len(df)} ({n_antes} -> {len(df)} empresas)")
@@ -291,11 +288,11 @@ print("\nMédia de cada cluster nos componentes principais:")
 print(centr_pc.groupby('Cluster').mean().round(2).to_string())
 
 # ═════════════════════════════════════════════════════════
-# PASSO 8 -- FIGURAS (1 a 6) -- formatação conforme Manual PECEGE
+# PASSO 8 -- FIGURAS (1 a 6) 
 # ═════════════════════════════════════════════════════════
 labels_pt = pt['Cluster'].values.astype(int)
 
-# ---------- FIGURA 1 (3 painéis: A, B, C) ----------
+# ---------- FIGURA 1  ----------
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.2))
 ax = axes[0]
 ax.plot(range(1, len(var_cumul)+1), var_cumul*100, 'o-', color=COR_PT, lw=2, markersize=5)
@@ -328,7 +325,7 @@ plt.tight_layout(pad=1.6)
 plt.savefig('fig1.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 
-# ---------- FIGURA 2 (2 painéis: A, B) ----------
+# ---------- FIGURA 2  ----------
 fig, (ax_sc, ax_sil) = plt.subplots(1, 2, figsize=(13, 5.5))
 for c in range(best_k):
     mask = labels_pt == c
@@ -362,7 +359,7 @@ plt.tight_layout(pad=1.6)
 plt.savefig('fig2.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 
-# ---------- FIGURA 3 (painel único -- sem letra de painel) ----------
+# ---------- FIGURA 3  ----------
 fig, ax = plt.subplots(figsize=(13, 4.5))
 dendrogram(Z_linkage, ax=ax, color_threshold=Z_linkage[-best_k+1, 2], leaf_rotation=90,
            leaf_font_size=4.5, above_threshold_color='#bdc3c7', count_sort='ascending')
@@ -373,7 +370,7 @@ plt.tight_layout(pad=1.2)
 plt.savefig('fig3.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 
-# ---------- FIGURA 4 (4 painéis: A, B, C, D -- SEM título interno) ----------
+# ---------- FIGURA 4  ----------
 c_m = pt.groupby('Cluster')[NUM_FEATURES].mean()
 norm_ = MinMaxScaler()
 c_n = pd.DataFrame(norm_.fit_transform(c_m), columns=NUM_FEATURES, index=c_m.index)
@@ -423,7 +420,7 @@ for c in range(best_k):
 
 labels_br = br['Cluster_BR'].values.astype(int)
 
-# ---------- FIGURA 5 (2 painéis: A, B) ----------
+# ---------- FIGURA 5 ----------
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
 ax1.scatter(pt_pca[:, 0], pt_pca[:, 1], c='#d5d8dc', s=40, alpha=0.55,
             edgecolors='white', linewidths=0.3, label='Portugal (referência)', zorder=2)
@@ -457,7 +454,7 @@ plt.tight_layout(pad=1.6)
 plt.savefig('fig5.png', bbox_inches='tight', dpi=180, facecolor='white')
 plt.close()
 
-# ---------- FIGURA 6 (painel único -- sem letra de painel) ----------
+# ---------- FIGURA 6  ----------
 fig, ax_d = plt.subplots(figsize=(9, 5.2))
 ptc = [int((labels_pt == c).sum()) for c in range(best_k)]
 brc = [int((labels_br == c).sum()) for c in range(best_k)]
@@ -695,7 +692,6 @@ print(f" -> Hopkins (espaço padronizado pré-PCA, 500 réplicas): média={resul
 # ═════════════════════════════════════════════════════════
 # ADENDO 6 -- OUTLIERS MULTIVARIADOS (MAHALANOBIS) E ROBUSTEZ DO PCA
 # ═════════════════════════════════════════════════════════
-# D² de Mahalanobis sobre as variáveis padronizadas; limiar pela qui-quadrado com gl = nº de variáveis
 Z_maha = StandardScaler().fit_transform(pt[NUM_FEATURES])
 S_inv = np.linalg.inv(np.cov(Z_maha, rowvar=False))
 d2 = np.einsum('ij,jk,ik->i', Z_maha, S_inv, Z_maha)
@@ -750,7 +746,6 @@ print(f"Com log1p no Score Analytics: componentes = {nc_la} | "
       f"silhueta = {silhouette_score(X_la_pca, lab_la):.3f} | "
       f"ARI vs solução final = {adjusted_rand_score(pt['Cluster'], lab_la):.3f}")
 # Resultado: assimetria do Analytics cai de 1,69 para 0,71; silhueta 0,312 (vs 0,307);
-# ARI = 0,833 -> escolha de não transformar os scores é defensável, mas altera parte da partição.
 
 
 # ═════════════════════════════════════════════════════════
