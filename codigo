@@ -1,6 +1,11 @@
 import warnings
 warnings.filterwarnings('ignore')
 
+import os
+# Trabalha sempre na pasta do script (Spyder, terminal ou outra IDE):
+# lê 'Dados MBA.xlsx' e salva as figuras nessa mesma pasta
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -870,7 +875,26 @@ print(f"  Estágio x aderência: qui-quadrado = {chi2_a:.2f} | gl = {gl_a} | p =
 # 10.3 Taxa padronizada pela composição portuguesa
 pesos_pt = comp['Portugal'] / comp['Portugal'].sum()
 taxa_bruta = br['Alta_Aderencia'].mean() * 100
-taxa_pad = (ader_est['alta'] / ader_est['n'] * pesos_pt).sum() * 100
+# Cenário com a composição de Portugal (colunas da direita da Tabela 7):
+# as 129 brasileiras são redistribuídas entre os estágios na proporção portuguesa
+# e, em cada estágio, aplica-se a aderência brasileira observada
+n_br_total = len(br)
+tab7 = pd.DataFrame({
+    'Portugal n': comp['Portugal'],
+    'Brasil n': comp['Brasil'],
+    'Aderentes BR (n)': ader_est['alta'],
+    'Aderência BR (%)': (ader_est['alta'] / ader_est['n'] * 100).round(1),
+    'Brasil com a composição de Portugal (n)': (pesos_pt * n_br_total).round(1),
+})
+tab7['Aderentes BR esperados (n)'] = (pesos_pt * n_br_total * ader_est['alta'] / ader_est['n']).round(1)
+tab7['Aderência BR esperada (%)'] = tab7['Aderência BR (%)']
+tab7.loc['Total'] = [comp['Portugal'].sum(), comp['Brasil'].sum(), int(ader_est['alta'].sum()),
+                     round(taxa_bruta, 1), n_br_total,
+                     round((pesos_pt * n_br_total * ader_est['alta'] / ader_est['n']).sum(), 1),
+                     round((pesos_pt * ader_est['alta'] / ader_est['n']).sum() * 100, 1)]
+taxa_pad = tab7.loc['Total', 'Aderência BR esperada (%)']
+print("\nTabela 7 (observado x cenário com a composição de Portugal):")
+print(tab7.to_string())
 print(f"  Aderência bruta: {taxa_bruta:.1f}% | padronizada (composição PT): {taxa_pad:.1f}%")
 
 # 10.4 Cluster de referência x estágio (Brasil)
@@ -942,6 +966,3 @@ print(f"\nPrimeira triagem ({len(rem)} exclusões): sem nº de funcionários no 
       f"demais (inconsistência de dados) = {(~sem_func & ~ipo).sum()}")
 print("Excluídas na montagem da base:", sorted(exc_montagem['Nome']))
 
-# Empresas de capital aberto mantidas na amostra final (exceção declarada)
-status_ipo = ajust.loc[(ajust['Status'] == 'IPO') | ajust['Tipo de Finan.'].astype(str).str.contains('IPO'), 'Nome']
-print("Mantidas com capital aberto:", sorted(set(final_sem_dup['Nome']) & set(status_ipo)))
