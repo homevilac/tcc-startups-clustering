@@ -770,3 +770,178 @@ print(pd.crosstab(pt['Cluster'].map(NOMES).rename('K-Means'), hier_nomeado,
                   margins=True, margins_name='Total').to_string())
 diag_kh = sum(cont_kh[mapa_h[c], c] for c in range(best_k))
 print(f"  Concordância (diagonal): {diag_kh}/{len(pt)} = {diag_kh/len(pt)*100:.1f}%")
+
+# ═════════════════════════════════════════════════════════
+# ADENDO 9 -- VALORES CITADOS NO TEXTO QUE NÃO ERAM IMPRESSOS
+# (colar ao final do codigo.py)
+# ═════════════════════════════════════════════════════════
+from scipy.stats import pearsonr
+
+# 9.1 Silhueta negativa por empresa (Discussão)
+neg = sil_v < 0
+print(f"\nSilhueta negativa: {neg.sum()} de {len(sil_v)} empresas ({neg.mean()*100:.1f}%), "
+      f"entre {sil_v[neg].min():.3f} e {sil_v[neg].max():.3f}")
+print(pd.Series(labels_pt[neg]).map(NOMES).value_counts().to_string())
+
+# 9.2 Tabela 3 -- médias por cluster na escala original (USD)
+pt_usd = pt.copy()
+for c in LOG_COLS:
+    pt_usd[c] = np.expm1(pt_usd[c])          # desfaz o log1p
+print("\nTabela 3 (médias em USD):")
+print(pt_usd.groupby('Cluster')[NUM_FEATURES].mean().rename(index=NOMES).round(2).to_string())
+
+# 9.3 Colunas não utilizadas como features (Engenharia de variáveis)
+#     mesma base tratada do modelo (Portugal, log1p nas variáveis monetárias)
+ua_hc = np.log1p(pt['Último Aporte'] / pt['Funcionários'])
+r, p = pearsonr(ua_hc, pt['Captação per HC'])
+print(f"\nÚltimo Aporte per capita x Captação per Capita: r = {r:.3f}; p = {p:.4f}")
+
+ESTAGIO_ORD = {'Seed': 1, 'Series A': 2, 'Series B': 3, 'Series C': 3,
+               'Series D': 3, 'Series E': 3, 'Series G': 3}   # Venture = não especificado
+est = pt['Tipo de Financiamento'].map(ESTAGIO_ORD)
+m = est.notna()
+for col in [IH_COL, 'Captação per HC']:
+    r, p = pearsonr(est[m], pt.loc[m, col])
+    print(f"Estágio (ordinal, n={m.sum()}) x {col[:25]}: r = {r:.3f}; p = {p:.4f}")
+
+SCORES = ['Score Deeptech', 'Score Cloud Native', 'Score DevTools', 'Score Analytics', 'Score Growth Stack']
+r, p = pearsonr(pt['N Tecnologias'], pt[SCORES].sum(axis=1))
+print(f"N Tecnologias x soma dos cinco scores: r = {r:.3f}; p = {p:.4f}")
+
+# 9.4 Retenção bruta por réplica do bootstrap e correlação com o ARI
+#     (repete o laço do Adendo 3 com as mesmas sementes)
+np.random.seed(42)
+ret = np.zeros(B)
+for b in range(B):
+    idx_boot = np.random.choice(n, size=n, replace=True)
+    km_b = KMeans(n_clusters=best_k, n_init=10, random_state=b).fit(pt_pca[idx_boot])
+    lp = km_b.predict(pt_pca)
+    cont = np.zeros((best_k, best_k))
+    for i_ in range(n):
+        cont[lp[i_], original_labels[i_]] += 1
+    ri, ci = linear_sum_assignment(-cont)
+    mp = dict(zip(ri, ci))
+    ret[b] = (np.array([mp[l] for l in lp]) == original_labels).mean()
+print(f"\nRetenção bruta média por réplica: {ret.mean():.3f} | "
+      f"correlação com o ARI: {np.corrcoef(ret, ari_scores)[0, 1]:.3f}")
+
+# ═════════════════════════════════════════════════════════
+# ADENDO 10 -- LIMITES DA COMPARAÇÃO PT x BR (Tabela 7)
+# Estágio de financiamento e sensibilidade ao custo salarial
+# ═════════════════════════════════════════════════════════
+from scipy.stats import kruskal
+
+ORDEM_EST = ['Seed', 'Series A', 'Series B–G', 'Venture']
+def agrupar_estagio(v):
+    s = str(v)
+    return s if s in ('Seed', 'Series A', 'Venture') else 'Series B–G'
+pt['Estágio'] = pt['Tipo de Financiamento'].apply(agrupar_estagio)
+br['Estágio'] = br['Tipo de Financiamento'].apply(agrupar_estagio)
+
+# 10.1 Composição por estágio PT x BR
+comp = pd.DataFrame({'Portugal': pt['Estágio'].value_counts(),
+                     'Brasil': br['Estágio'].value_counts()}).reindex(ORDEM_EST).fillna(0).astype(int)
+chi2_e, p_e, gl_e, esp_e = chi2_contingency(comp)
+v_e = np.sqrt(chi2_e / (comp.values.sum() * (min(comp.shape) - 1)))
+print("\nComposição por estágio (n e %):")
+print(pd.concat([comp, (comp / comp.sum() * 100).round(1).add_suffix(' (%)')], axis=1).to_string())
+print(f"  Qui-quadrado = {chi2_e:.2f} | gl = {gl_e} | p = {p_e:.2e} | V de Cramér = {v_e:.3f}")
+
+# 10.2 Aderência das brasileiras por estágio
+ader_est = br.groupby('Estágio').agg(n=('Alta_Aderencia', 'size'),
+                                     alta=('Alta_Aderencia', 'sum')).reindex(ORDEM_EST)
+ader_est['Aderência (%)'] = (ader_est['alta'] / ader_est['n'] * 100).round(1)
+print("\nAderência BR por estágio:")
+print(ader_est.to_string())
+obs_a = pd.crosstab(br['Estágio'], br['Alta_Aderencia']).reindex(ORDEM_EST)
+obs_a.columns = ['Baixa aderência', 'Alta aderência']
+chi2_a, p_a, gl_a, esp_a = chi2_contingency(obs_a)
+v_a = np.sqrt(chi2_a / (obs_a.values.sum() * (min(obs_a.shape) - 1)))
+# Esperado = total da linha x total da coluna / total geral
+# (número de aderentes caso a aderência não dependesse do estágio)
+esp_a = pd.DataFrame(esp_a, index=obs_a.index, columns=obs_a.columns)
+print("\nAlta aderência observada x esperada (Tabela 7):")
+print(pd.DataFrame({'Observada': obs_a['Alta aderência'],
+                    'Esperada': esp_a['Alta aderência'].round(1)}).to_string())
+print("Contribuição de cada célula para o qui-quadrado:")
+print(((obs_a - esp_a) ** 2 / esp_a).round(2).to_string())
+print(f"  Estágio x aderência: qui-quadrado = {chi2_a:.2f} | gl = {gl_a} | p = {p_a:.4f} | V de Cramér = {v_a:.3f}")
+
+# 10.3 Taxa padronizada pela composição portuguesa
+pesos_pt = comp['Portugal'] / comp['Portugal'].sum()
+taxa_bruta = br['Alta_Aderencia'].mean() * 100
+taxa_pad = (ader_est['alta'] / ader_est['n'] * pesos_pt).sum() * 100
+print(f"  Aderência bruta: {taxa_bruta:.1f}% | padronizada (composição PT): {taxa_pad:.1f}%")
+
+# 10.4 Cluster de referência x estágio (Brasil)
+print("\nCluster mais próximo x estágio (Brasil):")
+print(pd.crosstab(br['Cluster_BR'].map(NOMES), br['Estágio']).reindex(columns=ORDEM_EST, fill_value=0).to_string())
+
+# 10.5 Sensibilidade ao custo de mão de obra
+#     fator = salário médio PT / salário médio BR. A Cap/HC está em log1p:
+#     volta à escala original, aplica o fator e reaplica log1p.
+#     Scaler, PCA, centroides e threshold continuam os ajustados em Portugal.
+print("\nSensibilidade ao ajuste salarial da Cap/HC (Brasil):")
+for f in [1.0, 1.5, 2.0, 2.5, 3.0]:
+    X_aj = br_full.copy()
+    X_aj['Captação per HC'] = np.log1p(np.expm1(X_aj['Captação per HC']) * f)
+    d_aj = cdist(pca.transform(scaler.transform(X_aj)), centroids)
+    alta_aj = d_aj.min(axis=1) <= THRESH
+    dist_cl = np.bincount(d_aj.argmin(axis=1), minlength=best_k)
+    print(f"  Fator {f:.1f}: {alta_aj.sum()} BR ({alta_aj.mean()*100:.1f}%) | "
+          + " | ".join(f"C{c+1}={dist_cl[c]}" for c in range(best_k)))
+
+# ═════════════════════════════════════════════════════════
+# ADENDO 11 -- FUNIL DE SELEÇÃO DA AMOSTRA (Tabela A3)
+# Reconstrói as etapas a partir das abas da planilha:
+#   ' Dataset - Bruto'   -> exportação original do Crunchbase
+#   'Dataset - Ajustado' -> após consolidação; coluna 'Remover' = 'x'
+#   'Dataset '           -> base montada (235)
+#   'Base Final'         -> base usada no modelo (235; 234 sem duplicata)
+# ═════════════════════════════════════════════════════════
+ARQ = 'Dados MBA.xlsx'
+def ler(aba, col_nome):
+    d = pd.read_excel(ARQ, sheet_name=aba)
+    d['País'] = d['País'].astype(str).str.strip()
+    d['Nome'] = d[col_nome].astype(str).str.strip()
+    return d
+
+bruto   = ler(' Dataset - Bruto', 'Organização')
+ajust   = ler('Dataset - Ajustado', 'Organização')
+montada = ler('Dataset ', 'Organização')
+final   = ler('Base Final', 'Empresa')
+
+ajust['Removida'] = ajust['Remover'].notna()
+mantidas = ajust[~ajust['Removida']]
+exc_montagem = mantidas[~mantidas['Nome'].isin(montada['Nome'])]
+final_sem_dup = final.drop_duplicates(subset=['Nome', 'País'])
+
+def conta(d):
+    return [int((d['País'] == 'Portugal').sum()), int((d['País'] == 'Brasil').sum()), len(d)]
+
+funil = pd.DataFrame(
+    [conta(bruto), conta(ajust), conta(ajust[ajust['Removida']]), conta(exc_montagem),
+     conta(final), conta(final[final.duplicated(subset=['Nome', 'País'])]), conta(final_sem_dup)],
+    columns=['Portugal', 'Brasil', 'Total'],
+    index=['Empresas candidatas exportadas do Crunchbase',
+           'Após consolidação de duplicatas e ajustes de cadastro',
+           '(-) Excluídas na primeira triagem',
+           '(-) Excluídas na montagem da base',
+           'Amostra coletada',
+           '(-) Registro duplicado',
+           'Amostra analítica final'])
+print("\nFunil de seleção da amostra (Tabela A3):")
+print(funil.to_string())
+
+# Motivos das exclusões da primeira triagem
+rem = ajust[ajust['Removida']]
+sem_func = pd.to_numeric(rem['Funcionários (linkedin)'], errors='coerce').isna()
+ipo = rem['Tipo de Finan.'].astype(str).str.contains('IPO') | (rem['Status'] == 'IPO')
+print(f"\nPrimeira triagem ({len(rem)} exclusões): sem nº de funcionários no LinkedIn = {sem_func.sum()} | "
+      f"IPO prévio = {ipo.sum()} | ambos = {(sem_func & ipo).sum()} | "
+      f"demais (inconsistência de dados) = {(~sem_func & ~ipo).sum()}")
+print("Excluídas na montagem da base:", sorted(exc_montagem['Nome']))
+
+# Empresas de capital aberto mantidas na amostra final (exceção declarada)
+status_ipo = ajust.loc[(ajust['Status'] == 'IPO') | ajust['Tipo de Finan.'].astype(str).str.contains('IPO'), 'Nome']
+print("Mantidas com capital aberto:", sorted(set(final_sem_dup['Nome']) & set(status_ipo)))
